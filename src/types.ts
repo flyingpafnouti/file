@@ -51,6 +51,7 @@ export interface Settings {
   audioChannels: 'keep' | 'mono' | 'stereo';
   startTime: string;
   endTime: string;
+  outputBaseName: string;
   prefix: string;
   suffix: string;
   numbering: boolean;

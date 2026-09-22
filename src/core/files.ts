@@ -59,10 +59,11 @@ export async function inspectFile(file: File): Promise<FileMeta> {
 }
 
 export function outputName(file: File, settings: Settings, index: number, extension: string) {
-  let name = baseName(file.name);
+  let name = settings.outputBaseName.trim() ? baseName(settings.outputBaseName.trim()) : baseName(file.name);
   if (settings.search) name = name.split(settings.search).join(settings.replace);
   const number = settings.numbering ? `-${String(index + 1).padStart(3, '0')}` : '';
-  return `${settings.prefix}${name}${settings.suffix}${number}.${extension}`;
+  const safeName = `${settings.prefix}${name}${settings.suffix}${number}`.replace(/[<>:"/\\|?*]/g, '-').trim() || 'filelab-resultat';
+  return `${safeName}.${extension}`;
 }
 
 export async function sha256(file: File) {
