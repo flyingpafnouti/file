@@ -33,6 +33,8 @@ export default function Home() {
   const [customPresets, setCustomPresets] = useState(getCustomPresets);
   const [zipContents, setZipContents] = useState<Array<{name:string;size:number}>>([]);
   const [previewResult, setPreviewResult] = useState<ResultFile | null>(null);
+  const [viewer, setViewer] = useState<{src:string;name:string;width?:number;height?:number;label:string} | null>(null);
+  const [fitViewer, setFitViewer] = useState(false);
 
   const activeFiles = useMemo(() => files.filter(file => selected.has(file.id)), [files, selected]);
   const activeKind = activeFiles[0]?.kind || files[0]?.kind || 'image';
@@ -46,6 +48,13 @@ export default function Home() {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, []);
+
+  useEffect(() => {
+    if (!viewer) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setViewer(null); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [viewer]);
 
   async function addFiles(incoming: File[] | FileList) {
     const list = Array.from(incoming);
@@ -204,7 +213,10 @@ export default function Home() {
 
       <aside className="queue-panel panel">
         <div className="panel-head"><div><span className="kicker">Activité</span><h2>Queue</h2></div>{results.length > 0 && <button className="download-all" onClick={downloadAll}><Download size={15}/> Tout télécharger</button>}</div>
-        {previewResult && activeFiles[0]?.previewUrl && <div className="comparison"><div><span>Avant</span><img src={activeFiles[0].previewUrl} alt="Avant traitement"/></div><div><span>Après</span><img src={previewResult.previewUrl} alt="Après traitement"/></div></div>}
+        {previewResult && activeFiles[0]?.previewUrl && <div className="comparison">
+          <button onClick={() => { setFitViewer(false); setViewer({src:activeFiles[0].previewUrl!,name:activeFiles[0].file.name,width:activeFiles[0].width,height:activeFiles[0].height,label:'Original'}); }} title="Afficher l’original en taille réelle"><span>Avant · cliquer pour agrandir</span><img src={activeFiles[0].previewUrl} alt="Avant traitement"/></button>
+          <button onClick={() => { setFitViewer(false); setViewer({src:previewResult.previewUrl!,name:previewResult.name,width:previewResult.width,height:previewResult.height,label:'Résultat'}); }} title="Afficher le résultat en taille réelle"><span>Après · cliquer pour agrandir</span><img src={previewResult.previewUrl} alt="Après traitement"/></button>
+        </div>}
         <div className="queue-list">{queue.length === 0 ? <div className="empty-state"><Archive size={28}/><strong>La file est vide</strong><span>Vos traitements apparaîtront ici.</span></div> : queue.map(job => { const result = results.find(r => r.sourceId === job.sourceId); return <article className="queue-item" key={job.id}>
           <div className={`status-icon ${job.status.toLowerCase()}`}>{job.status === 'Done' ? <Check size={14}/> : job.status === 'Error' ? <CircleX size={14}/> : job.status === 'Processing' ? <LoaderCircle className="spin" size={14}/> : <Archive size={14}/>}</div>
           <div className="queue-main"><strong>{job.name}</strong><span>{job.operation} · {job.status}</span><div className="progress"><i style={{width:`${job.progress}%`}}/></div>{job.error && <small>{job.error}</small>}</div>
@@ -214,6 +226,13 @@ export default function Home() {
       </aside>
     </section>}
     <input ref={inputRef} className="visually-hidden" type="file" multiple onChange={e => { if(e.target.files) void addFiles(e.target.files); e.target.value=''; }}/>
+    {viewer && <div className="image-viewer" role="dialog" aria-modal="true" aria-label={`${viewer.label} : ${viewer.name}`}>
+      <div className="viewer-toolbar">
+        <div><span>{viewer.label}</span><strong>{viewer.name}</strong><small>{viewer.width && viewer.height ? `${viewer.width} × ${viewer.height} px` : 'Dimensions inconnues'}</small></div>
+        <div className="viewer-actions"><button onClick={() => setFitViewer(value => !value)}>{fitViewer ? 'Taille réelle · 100 %' : 'Ajuster à l’écran'}</button><button className="viewer-close" onClick={() => setViewer(null)} aria-label="Fermer"><X size={20}/></button></div>
+      </div>
+      <div className={`viewer-canvas ${fitViewer ? 'fit' : 'actual'}`}><img src={viewer.src} alt={`${viewer.label} en grand`}/></div>
+    </div>}
     <footer><LockKeyhole size={13}/> Aucun upload, aucun compte, aucune télémétrie.</footer>
   </main>;
 }
