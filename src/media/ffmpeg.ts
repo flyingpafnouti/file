@@ -5,15 +5,23 @@ import { outputName } from '../core/files';
 
 let ffmpeg: FFmpeg | null = null;
 let loading: Promise<FFmpeg> | null = null;
+let recentLogs: string[] = [];
 
 async function getFFmpeg(onProgress: (value: number) => void) {
   if (ffmpeg?.loaded) return ffmpeg;
   if (loading) return loading;
   loading = (async () => {
     const instance = new FFmpeg();
+    recentLogs = [];
+    instance.on('log', ({ message }) => {
+      recentLogs.push(message);
+      if (recentLogs.length > 30) recentLogs.shift();
+    });
     instance.on('progress', ({ progress }) => onProgress(Math.max(1, Math.min(99, progress * 100))));
-    const base = `${import.meta.env.BASE_URL}ffmpeg`;
-    await instance.load({ coreURL: `${base}/ffmpeg-core.js`, wasmURL: `${base}/ffmpeg-core.wasm` });
+    const appBase = new URL(import.meta.env.BASE_URL, window.location.href);
+    const coreURL = new URL('ffmpeg/ffmpeg-core.js', appBase).href;
+    const wasmURL = new URL('ffmpeg/ffmpeg-core.wasm', appBase).href;
+    await instance.load({ coreURL, wasmURL });
     ffmpeg = instance;
     return instance;
   })();
@@ -47,17 +55,19 @@ export async function processMedia(meta: FileMeta, settings: Settings, index: nu
     args.push('-vn', '-b:a', `${settings.bitrate || 192}k`);
     if (settings.audioChannels !== 'keep') args.push('-ac', settings.audioChannels === 'mono' ? '1' : '2');
   } else {
-    if (settings.resolution !== 'original') args.push('-vf', scaleFilter(settings.resolution));
+    args.push('-vf', scaleFilter(settings.resolution));
     if (settings.framerate) args.push('-r', String(settings.framerate));
     if (settings.removeAudio) args.push('-an');
     const crf = settings.videoQuality === 'high' ? '20' : settings.videoQuality === 'small' ? '32' : '26';
-    if (outputExt === 'webm') args.push('-c:v', 'libvpx-vp9', '-crf', crf, '-b:v', '0', '-c:a', 'libopus');
+    if (outputExt === 'webm') args.push('-c:v', 'libvpx-vp9', '-crf', crf, '-b:v', '0');
     else args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf, '-pix_fmt', 'yuv420p', '-movflags', '+faststart');
+    if (!settings.removeAudio) args.push('-c:a', outputExt === 'webm' ? 'libopus' : 'aac', '-b:a', '128k');
     if (settings.bitrate) args.push('-maxrate', `${settings.bitrate}k`, '-bufsize', `${settings.bitrate * 2}k`);
   }
   args.push(output);
   try {
-    await engine.exec(args);
+    const exitCode = await engine.exec(args);
+    if (exitCode !== 0) throw new Error(ffmpegError());
     const data = await engine.readFile(output);
     const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
     const mime = thumbnail ? 'image/jpeg' : gif ? 'image/gif' : meta.kind === 'audio' || extractingAudio ? `audio/${outputExt}` : `video/${outputExt}`;
@@ -72,6 +82,12 @@ export async function processMedia(meta: FileMeta, settings: Settings, index: nu
 
 function scaleFilter(resolution: string) {
   const heights: Record<string, number> = { '2160p': 2160, '1080p': 1080, '720p': 720, '480p': 480 };
+  if (resolution === 'original') return 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
   const height = heights[resolution] || 1080;
-  return `scale=-2:'min(${height},ih)'`;
+  return `scale=trunc(iw*min(1\\,${height}/ih)/2)*2:trunc(ih*min(1\\,${height}/ih)/2)*2`;
+}
+
+function ffmpegError() {
+  const useful = recentLogs.filter(line => /error|invalid|failed|unknown|not found|unable/i.test(line)).slice(-4);
+  return useful.length ? `FFmpeg : ${useful.join(' · ')}` : 'FFmpeg n’a pas pu convertir ce fichier. Vérifiez que la piste vidéo est lisible.';
 }

@@ -127,7 +127,11 @@ export default function Home() {
       patchQueue(job.id, { status: 'Done', progress: 100 });
     } catch (error) {
       if (cancelled.current.has(job.id)) patchQueue(job.id, { status: 'Cancelled', progress: 0 });
-      else patchQueue(job.id, { status: 'Error', error: error instanceof Error ? error.message : 'Erreur' });
+      else {
+        const message = error instanceof Error ? error.message : 'Erreur';
+        patchQueue(job.id, { status: 'Error', error: message });
+        setNotice(message);
+      }
     }
   }
 
