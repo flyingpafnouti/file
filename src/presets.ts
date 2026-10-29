@@ -4,7 +4,8 @@ export const defaultSettings: Settings = {
   operation: 'convert', outputFormat: 'webp', quality: 82, maxWidth: 1920, maxHeight: 1920,
   keepRatio: true, rotation: 0, flipH: false, flipV: false, resolution: '1080p',
   videoQuality: 'balanced', bitrate: 0, framerate: 30, removeAudio: false,
-  audioChannels: 'keep', startTime: '', endTime: '', outputBaseName: '', prefix: '', suffix: '', numbering: false,
+  audioChannels: 'keep', startTime: '', endTime: '',
+  segments: [{ start: '', end: '' }], cutMode: 'copy', outputBaseName: '', prefix: '', suffix: '', numbering: false,
   search: '', replace: '',
 };
 

@@ -8,11 +8,12 @@ import { processImage } from '../src/image/processImage';
 import { createZip, extractZip, listZip } from '../src/archive/zip';
 import { editPdf, imagesToPdf, mergePdfs } from '../src/pdf/pdf';
 import { builtInPresets, defaultSettings, getCustomPresets, saveCustomPreset } from '../src/presets';
+import { CutEditor } from './CutEditor';
 
 const kindLabels: Record<FileKind, string> = { image: 'Image', video: 'Vidéo', audio: 'Audio', pdf: 'PDF', zip: 'Archive', other: 'Fichier' };
 const operations: Record<FileKind, Array<[string, string]>> = {
   image: [['convert','Convertir / compresser'],['images-pdf','Créer un PDF'],['rename','Renommer'],['hash','Calculer SHA-256'],['create-zip','Créer un ZIP']],
-  video: [['convert','Convertir / compresser'],['extract-audio','Extraire l’audio'],['thumbnail','Créer une miniature'],['gif','Extrait en GIF'],['rename','Renommer'],['hash','Calculer SHA-256']],
+  video: [['convert','Convertir / compresser'],['cut','Extraire des intervalles'],['extract-audio','Extraire l’audio'],['thumbnail','Créer une miniature'],['gif','Extrait en GIF'],['rename','Renommer'],['hash','Calculer SHA-256']],
   audio: [['convert','Convertir / compresser'],['rename','Renommer'],['hash','Calculer SHA-256']],
   pdf: [['merge-pdf','Fusionner'],['extract-pages','Extraire des pages'],['remove-pages','Supprimer des pages'],['rotate-pages','Tourner des pages'],['rename','Renommer'],['hash','Calculer SHA-256']],
   zip: [['extract-zip','Extraire'],['hash','Calculer SHA-256'],['rename','Renommer']],
@@ -119,10 +120,10 @@ export default function Home() {
     try {
       if (settings.operation === 'convert' && meta.kind === 'image') {
         const out = await processImage(meta, settings, index); addResult({ sourceId: meta.id, ...out });
-      } else if ((meta.kind === 'video' || meta.kind === 'audio') && ['convert','extract-audio','thumbnail','gif'].includes(settings.operation)) {
-        if (meta.file.size > 1_000_000_000) throw new Error('Ce fichier dépasse 1 Go et risque d’épuiser la mémoire du navigateur.');
-        const { processMedia } = await import('../src/media/ffmpeg');
-        const out = await processMedia(meta, settings, index, progress => patchQueue(job.id, { progress: Math.round(progress) })); addResult({ sourceId: meta.id, ...out });
+      } else if ((meta.kind === 'video' || meta.kind === 'audio') && ['convert','cut','extract-audio','thumbnail','gif'].includes(settings.operation)) {
+        if (settings.operation !== 'cut' && meta.file.size > 1_000_000_000) throw new Error('Ce fichier dépasse 1 Go et risque d’épuiser la mémoire du navigateur.');
+        const { cutMedia, processMedia } = await import('../src/media/ffmpeg');
+        const out = await (settings.operation === 'cut' ? cutMedia : processMedia)(meta, settings, index, progress => patchQueue(job.id, { progress: Math.round(progress) })); addResult({ sourceId: meta.id, ...out });
       } else if (settings.operation === 'extract-zip') {
         const extracted = await extractZip(meta.file); extracted.forEach(item => addResult({ ...item, sourceId: meta.id }));
       } else if (['extract-pages','remove-pages','rotate-pages'].includes(settings.operation)) {
@@ -205,7 +206,9 @@ export default function Home() {
         <div className="panel-head"><div><span className="kicker">Opération</span><h2>{kindLabels[activeKind]}</h2></div><span className="count-chip">{activeFiles.length} sélectionné{activeFiles.length > 1 ? 's' : ''}</span></div>
         <label className="field full"><span>Action</span><select value={settings.operation} onChange={e => setSettings({...settings, operation:e.target.value})}>{operations[activeKind].map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select><ChevronDown size={15}/></label>
         <div className="preset-grid">{[...builtInPresets,...customPresets].filter(p => p.kind === activeKind).map(preset => <button key={preset.id} onClick={() => applyPreset(preset.id)} className="preset-card"><Sparkles size={15}/><span>{preset.name}</span></button>)}</div>
-        <SettingsForm kind={activeKind} settings={settings} setSettings={setSettings} pages={pages} setPages={setPages}/>
+        {settings.operation === 'cut' && activeKind === 'video'
+          ? <CutEditor meta={activeFiles[0]} count={activeFiles.length} settings={settings} setSettings={setSettings} busy={running}/>
+          : <SettingsForm kind={activeKind} settings={settings} setSettings={setSettings} pages={pages} setPages={setPages}/>}
         {activeKind === 'zip' && zipContents.length > 0 && <div className="archive-list"><strong>Contenu de l’archive</strong>{zipContents.slice(0,8).map(item => <span key={item.name}>{item.name}<small>{formatBytes(item.size)}</small></span>)}{zipContents.length > 8 && <em>+ {zipContents.length - 8} autres fichiers</em>}</div>}
         <div className="settings-actions"><button className="secondary-btn" onClick={savePreset}><Save size={16}/> Enregistrer le preset</button><button className="primary-btn" disabled={!activeFiles.length || running} onClick={run}>{running ? <LoaderCircle className="spin" size={18}/> : <Play size={18}/>} {running ? 'Traitement…' : 'Lancer'}</button></div>
         {notice && <output className="notice">{notice}</output>}

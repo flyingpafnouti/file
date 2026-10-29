@@ -7,6 +7,7 @@ FileLab est un atelier de fichiers 100 % local et statique. Les images, vidéos,
 - conversion, compression, redimensionnement, rotation et flip d'images ;
 - traitement par lots avec presets, renommage et téléchargement ZIP ;
 - conversion vidéo/audio locale avec FFmpeg WebAssembly, découpage, résolution, bitrate, miniature, GIF et extraction audio ;
+- extraction de plusieurs intervalles d'une vidéo mis bout à bout, saisis à la main ou marqués depuis un lecteur, sans perte (même format, mêmes métadonnées) ou avec coupe précise ;
 - création et extraction d'archives ZIP ;
 - fusion, extraction, suppression et rotation de pages PDF, plus images vers PDF ;
 - calcul SHA-256 local, métadonnées utiles et file d'attente annulable ;

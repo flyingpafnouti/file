@@ -33,6 +33,11 @@ export interface QueueItem {
   error?: string;
 }
 
+export interface Segment {
+  start: string;
+  end: string;
+}
+
 export interface Settings {
   operation: string;
   outputFormat: string;
@@ -51,6 +56,8 @@ export interface Settings {
   audioChannels: 'keep' | 'mono' | 'stereo';
   startTime: string;
   endTime: string;
+  segments: Segment[];
+  cutMode: 'copy' | 'precise';
   outputBaseName: string;
   prefix: string;
   suffix: string;

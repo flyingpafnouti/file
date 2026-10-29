@@ -1,4 +1,4 @@
-import type { FileKind, FileMeta, Settings } from '../types';
+import type { FileKind, FileMeta, Segment, Settings } from '../types';
 
 export const formatBytes = (bytes: number) => {
   if (!bytes) return '0 o';
@@ -14,7 +14,38 @@ export const formatDuration = (seconds?: number) => {
   return `${m}:${s}`;
 };
 
-export const extensionOf = (name: string) => name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+// Accepts "75", "75.5", "1:15", "0:01:15.5" (comma or dot decimals). Empty → undefined, invalid → NaN.
+export function parseTime(value: string) {
+  const text = value.trim().replace(',', '.');
+  if (!text) return undefined;
+  const parts = text.split(':');
+  if (parts.length > 3 || parts.some(part => !/^\d+(\.\d*)?$/.test(part))) return NaN;
+  return parts.reduce((total, part) => total * 60 + Number(part), 0);
+}
+
+export function formatTime(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = (seconds % 60).toFixed(2).padStart(5, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+export function segmentBounds(segments: Segment[], duration?: number) {
+  if (!segments.length) throw new Error('Ajoutez au moins un intervalle.');
+  return segments.map(({ start, end }, index) => {
+    const label = `Intervalle ${index + 1}`;
+    const from = parseTime(start) ?? 0;
+    let to = parseTime(end) ?? duration;
+    if (Number.isNaN(from) || Number.isNaN(to)) throw new Error(`${label} : format de temps invalide (ex. 1:05.5).`);
+    if (to == null) throw new Error(`${label} : indiquez une fin, la durée de la vidéo est inconnue.`);
+    if (duration) to = Math.min(to, duration);
+    if (duration && from >= duration) throw new Error(`${label} : le début dépasse la durée de la vidéo.`);
+    if (from >= to) throw new Error(`${label} : la fin doit être après le début.`);
+    return { start: from, end: to };
+  });
+}
+
+export const extensionOf =(name: string) => name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
 export const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
 
 export function detectKind(file: File): FileKind {
